@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="https://i.ibb.co/VYW1hDxn/ccbine.png">
-
-    <title>codeCombine</title>
+    <title>codeCombine Pro</title>
     <style>
         :root {
             --background-color: #0a0a0a;
@@ -14,6 +13,8 @@
             --button-hover-bg: #333333;
             --button-border: #444444;
             --preview-bg: #1a1a1a;
+            --accent-color: #4a90e2;
+            --accent-hover: #357abd;
             --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --font-mono: 'Consolas', 'Menlo', 'Courier New', monospace;
         }
@@ -26,7 +27,6 @@
             padding: 20px;
             display: flex;
             justify-content: center;
-            align-items: center;
             min-height: 100vh;
         }
 
@@ -62,6 +62,87 @@
             color: #a0a0a0;
         }
 
+        #drop-zone {
+            border: 2px dashed var(--button-border);
+            border-radius: 12px;
+            padding: 40px;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+        }
+
+        #drop-zone.drag-over {
+            border-color: var(--accent-color);
+            background: rgba(74, 144, 226, 0.1);
+            transform: scale(1.01);
+        }
+
+        #staging-area {
+            display: none;
+            background: var(--preview-bg);
+            border: 1px solid var(--button-border);
+            border-radius: 10px;
+            margin-bottom: 25px;
+            text-align: left;
+            padding: 25px;
+            max-height: 600px;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .staging-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--button-border);
+            padding-bottom: 10px;
+        }
+
+        .staging-header h3 { margin: 0; font-size: 1.2rem; }
+
+        .tree-item { 
+            margin-left: 15px; 
+            font-family: var(--font-mono); 
+            font-size: 0.9rem; 
+            padding: 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .folder-toggle {
+            cursor: pointer;
+            user-select: none;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: #666;
+            transition: transform 0.2s;
+        }
+
+        .folder-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .folder-group {
+            margin-left: 20px;
+            border-left: 1px solid #333;
+        }
+
+        .folder-group.hidden {
+            display: none;
+        }
+
+        .folder-label { font-weight: bold; color: #aaa; cursor: pointer; }
+        
+        .auto-ignored { opacity: 0.5; }
+        .auto-ignored span { text-decoration: line-through; }
+
         .controls {
             display: flex;
             justify-content: center;
@@ -78,22 +159,21 @@
             font-size: 1rem;
             border-radius: 8px;
             cursor: pointer;
-            transition: background-color 0.2s ease, transform 0.1s ease;
+            transition: all 0.2s ease;
             font-family: var(--font-main);
         }
 
-        .btn:hover {
-            background-color: var(--button-hover-bg);
-        }
-
-        .btn:active {
-            transform: scale(0.98);
-        }
+        .btn:hover { background-color: var(--button-hover-bg); }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .btn-primary { 
+            background-color: var(--accent-color); 
+            border-color: var(--accent-color); 
+            color: white; 
+            font-weight: 600;
         }
+        .btn-primary:hover { background-color: var(--accent-hover); }
 
         .preview-area {
             width: 100%;
@@ -107,15 +187,23 @@
             font-size: 0.9rem;
             resize: vertical;
             box-sizing: border-box;
-            white-space: pre; /* Essential for tree formatting */
+            white-space: pre;
             overflow-x: auto;
         }
         
-        /* Utility to hide inputs */
-        .hidden-input {
-            display: none;
-        }
+        .hidden-input { display: none; }
 
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--background-color); }
+        ::-webkit-scrollbar-thumb { background: var(--button-border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: var(--accent-color);
+            width: 16px;
+            height: 16px;
+        }
     </style>
 </head>
 <body>
@@ -131,231 +219,374 @@
             <h1>codeCombine</h1>
         </div>
         
-        <p class="instructions">Upload individual files or an entire folder to generate an AI-ready text block with structure.</p>
+        <p class="instructions">Review your code before combining. Ignored folders are collapsed and sorted to the bottom by default.</p>
         
-        <div class="controls">
-            <!-- Standard file input -->
-            <input type="file" id="file-input" class="hidden-input" multiple>
-            <!-- Directory input (webkitdirectory allows folder selection) -->
-            <input type="file" id="folder-input" class="hidden-input" webkitdirectory directory multiple>
-            
-            <button class="btn" id="upload-files-btn">Select Files</button>
-            <button class="btn" id="upload-folder-btn">Select Folder</button>
-            
-            <button class="btn" id="copy-btn" disabled>Copy to Clipboard</button>
-            <button class="btn" id="save-btn" disabled>Save as .txt</button>
+        <div id="drop-zone">
+            <div class="controls">
+                <input type="file" id="file-input" class="hidden-input" multiple>
+                <input type="file" id="folder-input" class="hidden-input" webkitdirectory directory multiple>
+                <button class="btn" id="upload-files-btn">Select Files</button>
+                <button class="btn" id="upload-folder-btn">Select Folder</button>
+            </div>
+            <p id="drop-text" style="margin:0; color:#666">...or drop folders and files here</p>
         </div>
 
-        <textarea id="preview" class="preview-area" readonly placeholder="Your combined code will appear here..."></textarea>
+        <div id="staging-area">
+            <div class="staging-header">
+                <h3>File Tree Review</h3>
+                <button class="btn btn-primary" id="generate-btn">Combine Checked Files</button>
+            </div>
+            <div id="tree-container"></div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" id="copy-btn" disabled>Copy to Clipboard</button>
+            <button class="btn" id="save-btn" disabled>Save as .txt</button>
+            <button class="btn" id="clear-btn">Clear All</button>
+        </div>
+
+        <textarea id="preview" class="preview-area" readonly placeholder="Your AI-ready code block will appear here..."></textarea>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const fileInput = document.getElementById('file-input');
-            const folderInput = document.getElementById('folder-input');
+            const IGNORE_LIST = [
+                'node_modules', '.git', '.env', '.ds_store', 'package-lock.json', 
+                'yarn.lock', 'dist', 'build', 'venv', '.next', '.vscode', 'target', '.idea'
+            ];
             
-            const uploadFilesBtn = document.getElementById('upload-files-btn');
-            const uploadFolderBtn = document.getElementById('upload-folder-btn');
-            
-            const copyBtn = document.getElementById('copy-btn');
-            const saveBtn = document.getElementById('save-btn');
-            const previewArea = document.getElementById('preview');
-
-            let combinedText = "";
-
-            // --- Event Listeners ---
-            
-            uploadFilesBtn.addEventListener('click', () => fileInput.click());
-            uploadFolderBtn.addEventListener('click', () => folderInput.click());
-
-            // Handle individual files
-            fileInput.addEventListener('change', (event) => {
-                const files = Array.from(event.target.files);
-                if (files.length > 0) processFiles(files);
-                // Reset to allow re-selection
-                fileInput.value = ''; 
-            });
-
-            // Handle folder structure
-            folderInput.addEventListener('change', (event) => {
-                const files = Array.from(event.target.files);
-                if (files.length > 0) processFiles(files);
-                folderInput.value = '';
-            });
-
-            copyBtn.addEventListener('click', () => {
-                if (combinedText) {
-                    navigator.clipboard.writeText(combinedText).then(() => {
-                        const originalText = copyBtn.textContent;
-                        copyBtn.textContent = "Copied!";
-                        setTimeout(() => { copyBtn.textContent = originalText; }, 2000);
-                    }).catch(err => {
-                        console.error("Failed to copy: ", err);
-                        alert("Failed to copy to clipboard.");
-                    });
-                }
-            });
-            
-            saveBtn.addEventListener('click', () => {
-                if (combinedText) {
-                    const blob = new Blob([combinedText], { type: 'text/plain;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = 'combined_code.txt';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                }
-            });
-            
-
-            // --- Core Functions ---
-
             const ALLOWED_EXTENSIONS = [
                 'txt', 'md', 'py', 'js', 'jsx', 'html', 'css', 'scss', 'json', 'xml', 'java', 'c', 
                 'cpp', 'cs', 'go', 'php', 'rb', 'rs', 'ts', 'tsx', 'kt', 'sh', 'yaml', 'toml', 'sql', 'vue', 'svelte'
             ];
 
-            async function processFiles(files) {
-                const validFiles = [];
-                const rejectedFiles = [];
+            const LANG_MAP = {
+                'py': 'python', 'js': 'javascript', 'jsx': 'javascript', 
+                'html': 'html', 'css': 'css', 'scss': 'scss',
+                'java': 'java', 'c': 'c', 'cpp': 'cpp', 'cs': 'csharp', 'go': 'go',
+                'php': 'php', 'rb': 'ruby', 'rs': 'rust', 'ts': 'typescript', 'tsx': 'typescript',
+                'kt': 'kotlin', 'md': 'markdown', 'json': 'json', 'xml': 'xml', 
+                'sh': 'bash', 'sql': 'sql', 'yaml': 'yaml', 'vue': 'html', 'svelte': 'html'
+            };
 
-                // 1. Filter Files
-                for (const file of files) {
-                    // Handle dotfiles or hidden files
-                    if (file.name.startsWith('.')) continue;
+            const fileInput = document.getElementById('file-input');
+            const folderInput = document.getElementById('folder-input');
+            const dropZone = document.getElementById('drop-zone');
+            const stagingArea = document.getElementById('staging-area');
+            const treeContainer = document.getElementById('tree-container');
+            const previewArea = document.getElementById('preview');
+            const copyBtn = document.getElementById('copy-btn');
+            const saveBtn = document.getElementById('save-btn');
+            const generateBtn = document.getElementById('generate-btn');
+            const clearBtn = document.getElementById('clear-btn');
 
-                    const extension = file.name.split('.').pop().toLowerCase();
-                    // Basic check to ensure it's likely a text file based on extension
-                    if (ALLOWED_EXTENSIONS.includes(extension) || file.type.startsWith('text/') || file.type === 'application/json') {
-                        validFiles.push(file);
-                    } else {
-                        rejectedFiles.push(file.name);
+            let stagedFiles = []; 
+            let currentFilenameBase = "combined_code";
+
+            // --- 1. Robust Drag & Drop Handling ---
+            
+            // Prevent browser from opening dropped files by default everywhere
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                document.body.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            // Target specific drop zone events explicitly
+            dropZone.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault(); // This is crucial for local file dragging to work
+                dropZone.classList.add('drag-over');
+            });
+            
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+            });
+
+            dropZone.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                
+                const newFiles = [];
+
+                if (e.dataTransfer.items) {
+                    // Synchronously capture entries to avoid them being cleared
+                    const entries = [];
+                    for (let i = 0; i < e.dataTransfer.items.length; i++) {
+                        const item = e.dataTransfer.items[i];
+                        if (item.kind === 'file') {
+                            const entry = item.webkitGetAsEntry();
+                            if (entry) entries.push(entry);
+                        }
+                    }
+
+                    for (const entry of entries) {
+                        await traverseEntry(entry, "", newFiles);
+                    }
+                } else if (e.dataTransfer.files) {
+                    // Fallback for older browsers
+                    for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                        const file = e.dataTransfer.files[i];
+                        newFiles.push({ file, path: file.webkitRelativePath || file.name });
                     }
                 }
                 
-                if (rejectedFiles.length > 0) {
-                    // Optional: Log skipped files to console instead of alerting to avoid spam on huge folders
-                    console.log(`Skipped ${rejectedFiles.length} non-text files.`);
+                if (newFiles.length > 0) {
+                    stagedFiles = [...stagedFiles, ...newFiles];
+                    refreshUI();
+                }
+            });
+
+            async function traverseEntry(entry, path, fileList) {
+                try {
+                    if (entry.isFile) {
+                        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+                        fileList.push({ file, path: path + entry.name });
+                    } else if (entry.isDirectory) {
+                        const reader = entry.createReader();
+                        const entries = await new Promise((resolve, reject) => {
+                            let allEntries = [];
+                            function readAll() {
+                                reader.readEntries(results => {
+                                    if (results.length) {
+                                        allEntries = allEntries.concat(results);
+                                        readAll();
+                                    } else {
+                                        resolve(allEntries);
+                                    }
+                                }, reject); // Added error handling to readEntries
+                            }
+                            readAll();
+                        });
+                        for (const child of entries) {
+                            await traverseEntry(child, path + entry.name + "/", fileList);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to read entry:", entry.name, err);
+                }
+            }
+
+            // --- 2. Standard Input Handling ---
+            document.getElementById('upload-files-btn').addEventListener('click', () => fileInput.click());
+            document.getElementById('upload-folder-btn').addEventListener('click', () => folderInput.click());
+
+            fileInput.addEventListener('change', (e) => handleLegacyFiles(e.target.files));
+            folderInput.addEventListener('change', (e) => handleLegacyFiles(e.target.files));
+
+            function handleLegacyFiles(files) {
+                const newFiles = Array.from(files).map(f => ({
+                    file: f,
+                    path: f.webkitRelativePath || f.name
+                }));
+                stagedFiles = [...stagedFiles, ...newFiles];
+                refreshUI();
+                fileInput.value = '';
+                folderInput.value = '';
+            }
+
+            // --- 3. Tree Rendering ---
+            function refreshUI() {
+                if (stagedFiles.length === 0) {
+                    stagingArea.style.display = 'none';
+                    return;
                 }
                 
-                if (validFiles.length === 0) {
-                    alert("No supported text files found.");
+                stagingArea.style.display = 'block';
+                const treeRoot = buildTree(stagedFiles);
+                treeContainer.innerHTML = renderTreeHTML(treeRoot);
+            }
+
+            function buildTree(files) {
+                const root = { _meta: { isFile: false }, children: {} };
+                files.forEach((f, index) => {
+                    const parts = f.path.split('/');
+                    let current = root;
+                    parts.forEach((part, i) => {
+                        if (!current.children[part]) {
+                            if (i === parts.length - 1) {
+                                current.children[part] = { _meta: { isFile: true, index } };
+                            } else {
+                                current.children[part] = { _meta: { isFile: false }, children: {} };
+                            }
+                        }
+                        current = current.children[part];
+                    });
+                });
+                return root;
+            }
+
+            function renderTreeHTML(node) {
+                let html = "";
+                const children = node.children || {};
+                
+                const keys = Object.keys(children).sort((a, b) => {
+                    const aIsIgnored = IGNORE_LIST.some(term => a.toLowerCase().includes(term.toLowerCase()));
+                    const bIsIgnored = IGNORE_LIST.some(term => b.toLowerCase().includes(term.toLowerCase()));
+                    
+                    if (aIsIgnored !== bIsIgnored) {
+                        return aIsIgnored ? 1 : -1;
+                    }
+
+                    const aIsFile = children[a]._meta.isFile;
+                    const bIsFile = children[b]._meta.isFile;
+                    
+                    if (aIsFile !== bIsFile) {
+                        return aIsFile ? 1 : -1; 
+                    }
+                    
+                    return a.localeCompare(b);
+                });
+
+                keys.forEach(key => {
+                    const item = children[key];
+                    const meta = item._meta;
+                    const isIgnored = IGNORE_LIST.some(term => key.toLowerCase().includes(term.toLowerCase()));
+                    const checkedStatus = isIgnored ? "" : "checked";
+                    const itemClass = isIgnored ? "auto-ignored" : "";
+
+                    if (meta.isFile) {
+                        const ext = key.split('.').pop().toLowerCase();
+                        if (ALLOWED_EXTENSIONS.includes(ext)) {
+                            html += `<div class="tree-item ${itemClass}">
+                                <input type="checkbox" class="file-check" data-index="${meta.index}" ${checkedStatus}>
+                                <span>📄 ${key}</span>
+                            </div>`;
+                        }
+                    } else {
+                        const groupClass = isIgnored ? "folder-group hidden" : "folder-group";
+                        const toggleClass = isIgnored ? "folder-toggle collapsed" : "folder-toggle";
+                        
+                        html += `
+                        <div class="folder-container">
+                            <div class="tree-item ${itemClass}">
+                                <div class="${toggleClass}">▼</div>
+                                <input type="checkbox" class="folder-check" ${checkedStatus}>
+                                <span class="folder-label">📁 ${key}/</span>
+                            </div>
+                            <div class="${groupClass}">
+                                ${renderTreeHTML(item)}
+                            </div>
+                        </div>`;
+                    }
+                });
+                return html;
+            }
+
+            // --- 4. Interactive Tree Controls ---
+            treeContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('folder-toggle') || e.target.classList.contains('folder-label')) {
+                    const container = e.target.closest('.folder-container');
+                    const group = container.querySelector('.folder-group');
+                    const toggle = container.querySelector('.folder-toggle');
+                    
+                    group.classList.toggle('hidden');
+                    toggle.classList.toggle('collapsed');
+                }
+            });
+
+            treeContainer.addEventListener('change', (e) => {
+                if (e.target.classList.contains('folder-check')) {
+                    const container = e.target.closest('.folder-container');
+                    const allCheckboxes = container.querySelectorAll('input[type="checkbox"]');
+                    allCheckboxes.forEach(cb => {
+                        cb.checked = e.target.checked;
+                    });
+                }
+            });
+
+            // --- 5. Generation Logic ---
+            generateBtn.addEventListener('click', async () => {
+                const checks = document.querySelectorAll('.file-check');
+                const selectedIndexes = Array.from(checks).filter(c => c.checked).map(c => parseInt(c.dataset.index));
+
+                if (selectedIndexes.length === 0) {
+                    alert("Please select at least one file to include.");
                     return;
                 }
 
-                // 2. Generate Tree Structure
-                const treeView = generateDirectoryTree(validFiles);
+                const selectedFiles = selectedIndexes.map(idx => stagedFiles[idx]);
+                selectedFiles.sort((a, b) => a.path.localeCompare(b.path));
 
-                // 3. Read File Contents
+                const fileNames = selectedFiles.slice(0, 3).map(f => {
+                    const name = f.file.name.split('.')[0];
+                    return name.length > 10 ? name.substring(0, 10) : name;
+                });
+                currentFilenameBase = fileNames.join('-');
+
+                let treeView = "Project Structure:\n";
+                selectedFiles.forEach(f => treeView += `-- ${f.path}\n`);
+
                 let codeBlocks = [];
-                const fileReadPromises = validFiles.map(readFile);
-
-                try {
-                    const fileContents = await Promise.all(fileReadPromises);
-                    
-                    // Sort files alphabetically by path for cleaner output
-                    fileContents.sort((a, b) => a.path.localeCompare(b.path));
-
-                    for (const fileData of fileContents) {
-                        const { path, content } = fileData;
-                        const extension = path.split('.').pop().toLowerCase();
-                        const lang = getLanguageIdentifier(extension);
-
-                        // Use full relative path in the code block header
-                        const formattedBlock = `${path}\n\`\`\`${lang}\n${content}\n\`\`\``;
-                        codeBlocks.push(formattedBlock);
+                for (const f of selectedFiles) {
+                    try {
+                        const content = await f.file.text();
+                        const ext = f.path.split('.').pop().toLowerCase();
+                        const lang = LANG_MAP[ext] || '';
+                        codeBlocks.push(`${f.path}\n\`\`\`${lang}\n${content}\n\`\`\``);
+                    } catch (err) {
+                        console.error(`Error reading ${f.path}:`, err);
                     }
-                    
-                    // 4. Combine Final Output
-                    combinedText = `${treeView}\nHere is the code:\n\n\n${codeBlocks.join("\n\n")}`;
-                    previewArea.value = combinedText;
-
-                    copyBtn.disabled = false;
-                    saveBtn.disabled = false;
-
-                } catch (error) {
-                    console.error("Error processing files:", error);
-                    alert("An error occurred while reading the files.");
-                }
-            }
-
-            function readFile(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    // Use webkitRelativePath if available (folder upload), otherwise fallback to name
-                    const filePath = file.webkitRelativePath || file.name;
-                    
-                    reader.onload = () => resolve({ path: filePath, content: reader.result });
-                    reader.onerror = () => reject(reader.error);
-                    reader.readAsText(file);
-                });
-            }
-
-            // --- Tree Generation Logic ---
-            function generateDirectoryTree(files) {
-                const root = {};
-
-                // Step A: Build the hierarchical object
-                files.forEach(file => {
-                    const path = file.webkitRelativePath || file.name;
-                    const parts = path.split('/');
-                    
-                    let current = root;
-                    parts.forEach((part, index) => {
-                        if (!current[part]) {
-                            // If it's the last part, it's a file (null marks it as file)
-                            // Otherwise it's a folder (new object)
-                            current[part] = (index === parts.length - 1) ? null : {};
-                        }
-                        current = current[part];
-                    });
-                });
-
-                // Step B: Recursive print function
-                function renderNode(node, indent = "") {
-                    let output = "";
-                    const entries = Object.keys(node).sort((a, b) => {
-                        // Sort: folders first, then files, or alphabetical
-                        const aIsFile = node[a] === null;
-                        const bIsFile = node[b] === null;
-                        if (aIsFile && !bIsFile) return 1;
-                        if (!aIsFile && bIsFile) return -1;
-                        return a.localeCompare(b);
-                    });
-
-                    entries.forEach(key => {
-                        if (node[key] === null) {
-                            // It's a file
-                            output += `${indent}--${key}\n`;
-                        } else {
-                            // It's a folder
-                            output += `${indent}${key}/\n`;
-                            output += renderNode(node[key], indent + "   ");
-                        }
-                    });
-                    return output;
                 }
 
-                // If handling single files without folder context, root might just contain files
-                return renderNode(root);
-            }
+                const finalOutput = `${treeView}\nHere is the code contents:\n\n${codeBlocks.join('\n\n')}`;
+                previewArea.value = finalOutput;
+                copyBtn.disabled = false;
+                saveBtn.disabled = false;
+                
+                previewArea.scrollIntoView({ behavior: 'smooth' });
+            });
 
-            function getLanguageIdentifier(extension) {
-                const langMap = {
-                    'py': 'python', 'js': 'javascript', 'jsx': 'javascript', 
-                    'html': 'html', 'css': 'css', 'scss': 'scss',
-                    'java': 'java', 'c': 'c', 'cpp': 'cpp', 'cs': 'csharp', 'go': 'go',
-                    'php': 'php', 'rb': 'ruby', 'rs': 'rust', 'ts': 'typescript', 'tsx': 'typescript',
-                    'kt': 'kotlin', 'md': 'markdown', 'json': 'json', 'xml': 'xml', 
-                    'sh': 'bash', 'sql': 'sql', 'yaml': 'yaml', 'vue': 'html'
-                };
-                return langMap[extension] || '';
-            }
+            // Utilities
+            copyBtn.addEventListener('click', () => {
+                const text = previewArea.value;
+                if (!text) return;
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = "Copied!";
+                    copyBtn.classList.add('btn-primary');
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                        copyBtn.classList.remove('btn-primary');
+                    }, 2000);
+                });
+            });
+
+            saveBtn.addEventListener('click', () => {
+                const text = previewArea.value;
+                if (!text) return;
+
+                const now = new Date();
+                const timestamp = now.toISOString().split('T')[0] + "_" + 
+                                  now.getHours().toString().padStart(2, '0') + 
+                                  now.getMinutes().toString().padStart(2, '0');
+                
+                const filename = `${currentFilenameBase}_${timestamp}.txt`;
+
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            clearBtn.addEventListener('click', () => {
+                stagedFiles = [];
+                previewArea.value = "";
+                copyBtn.disabled = true;
+                saveBtn.disabled = true;
+                currentFilenameBase = "combined_code";
+                refreshUI();
+            });
         });
     </script>
-
 </body>
 </html>
